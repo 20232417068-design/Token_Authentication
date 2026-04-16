@@ -61,12 +61,12 @@
 
     <p id="msg"></p>
 
-    <p>Already have account? <a href="index.html">Login</a></p>
+    <p>Already have account? <a href="/">Login</a></p>
 </div>
 
 <script>
 function register() {
-    fetch("http://127.0.0.1:5000/register", {
+    fetch("https://token-authentication-hq1t.onrender.com/register", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -81,7 +81,7 @@ function register() {
         document.getElementById("msg").innerText = data.message;
 
         if (data.message === "User registered successfully") {
-            window.location.href = "index.html";
+            window.location.href = "/";
         }
     });
 }
