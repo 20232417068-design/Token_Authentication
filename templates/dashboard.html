@@ -138,8 +138,7 @@ function disableButtons() {
     });
 }
 
-// 📊 Results + Chart + Winner
-function getResults() {
+
     fetch(BASE_URL + "/results")
     .then(res => res.json())
     .then(data => {
@@ -211,8 +210,34 @@ function getResults() {
     .catch(() => {
         document.getElementById("result").innerText = "Error loading results";
     });
-}
+fetch(BASE_URL + "/results")
+.then(res => {
+    console.log("STATUS:", res.status);   // 🔥 debug
+    return res.json();
+})
+.then(data => {
+    console.log("DATA:", data);  // 🔥 debug
 
+    if (data.error) {
+        document.getElementById("result").innerText = data.error;
+        return;
+    }
+
+    let html = `<h3>Total Votes: ${data.total}</h3>`;
+
+    for (let key in data.votes) {
+        html += `<p>${key}: ${data.votes[key]}</p>`;
+    }
+
+    if (data.winner) {
+        html += `<h3>🏆 Winner: ${data.winner}</h3>`;
+    }
+
+    document.getElementById("result").innerHTML = html;
+})
+.catch(err => {
+    console.log("ERROR:", err);  // 🔥 IMPORTANT
+});
 // 🔓 Logout
 function logout() {
     localStorage.removeItem("token");
