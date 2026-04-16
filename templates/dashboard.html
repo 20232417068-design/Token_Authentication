@@ -129,7 +129,8 @@ function vote(candidate) {
     })
     .then(res => res.json())
     .then(data => {
-        document.getElementById("msg").innerText = data.message;
+        document.getElementById("msg").innerText =
+            data.message ? data.message : "Vote successful";
         disableButtons();
     })
     .catch(err => {
@@ -147,9 +148,15 @@ function disableButtons() {
 
 // Results
 function getResults() {
+
     fetch(BASE_URL + "/results")
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) throw new Error("Server error");
+        return res.json();
+    })
     .then(data => {
+
+        console.log("Results:", data);
 
         let html = `<h3>Total Votes: ${data.total}</h3>`;
 
@@ -174,9 +181,9 @@ function getResults() {
         document.getElementById("result").innerHTML = html;
 
         // Chart
-        const ctx = document.getElementById("chart");
+        const ctx = document.getElementById("chart").getContext("2d");
 
-        if (window.chart) {
+        if (window.chart && typeof window.chart.destroy === "function") {
             window.chart.destroy();
         }
 
@@ -197,8 +204,9 @@ function getResults() {
         });
 
     })
-    .catch(() => {
-        document.getElementById("result").innerText = "Error loading results";
+    .catch(err => {
+        console.log("RESULT ERROR:", err);
+        document.getElementById("result").innerText = "❌ Error loading results";
     });
 }
 
