@@ -12,16 +12,17 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# ------------------ CONFIG ------------------ #
+# Config
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'
 
-# ------------------ INIT ------------------ #
+# Init
 db.init_app(app)
 jwt = JWTManager(app)
 bcrypt = Bcrypt(app)
 
 # ------------------ PAGES ------------------ #
+
 @app.route('/')
 def home():
     return render_template("index.html")
@@ -35,17 +36,10 @@ def dashboard_page():
     return render_template("dashboard.html")
 
 # ------------------ AUTH ------------------ #
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-
-    # ✅ validation
-    if not data or not data.get("username") or not data.get("password"):
-        return jsonify({"message": "All fields required"}), 400
-
-    # ✅ check duplicate user
-    if User.query.filter_by(username=data['username']).first():
-        return jsonify({"message": "User already exists"}), 400
 
     hashed_password = bcrypt.generate_password_hash(
         data['password']
@@ -85,46 +79,40 @@ def login():
 @app.route('/dashboard', methods=['GET'])
 @jwt_required()
 def dashboard():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    try:
+        user_id = int(get_jwt_identity())
 
-    return jsonify({
-        "message": f"Welcome {user.username}",
-        "has_voted": user.has_voted,
-        "vote": user.vote
-    })
+        user = db.session.get(User, user_id)
 
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-@app.route('/refresh', methods=['POST'])
-@jwt_required(refresh=True)
-def refresh():
-    user_id = get_jwt_identity()
-    new_access_token = create_access_token(identity=user_id)
+        return jsonify({
+            "username": user.username,
+            "has_voted": user.has_voted,
+            "vote": user.vote
+        })
 
-    return jsonify(access_token=new_access_token)
-
-# ------------------ DATABASE ------------------ #
-with app.app_context():
-    db.create_all()
-
+    except Exception as e:
+        print("Dashboard Error:", e)
+        return jsonify({"error": "Server error"}), 500
 # ------------------ VOTING ------------------ #
+
 @app.route('/vote', methods=['POST'])
 @jwt_required()
 def vote():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     data = request.get_json()
-
-    if not data or "candidate" not in data:
-        return jsonify({"message": "Invalid data"}), 400
-
-    candidate = data["candidate"]
+    candidate = data.get("candidate")
 
     if candidate not in ["A", "B", "C", "D"]:
         return jsonify({"message": "Invalid candidate"}), 400
 
-    # ✅ prevent multiple voting
     if user.has_voted:
         return jsonify({"message": "You already voted"}), 400
 
@@ -133,70 +121,54 @@ def vote():
 
     db.session.commit()
 
-    return jsonify({"message": f"✅ Vote submitted for {candidate}"})
+    return jsonify({"message": f"Vote submitted for {candidate}"})
 
 
-# ------------------ USER STATUS ------------------ #
-@app.route('/user-status', methods=['GET'])
-@jwt_required()
-def user_status():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+# ------------------ RESULTS ------------------ #
+
+@app.route('/results', methods=['GET'])
+def results():
+    users = User.query.all()
+
+    result = {"A": 0, "B": 0, "C": 0, "D": 0}
+    total_votes = 0
+
+    for user in users:
+        if user.vote and user.vote in result:
+            result[user.vote] += 1
+            total_votes += 1
+
+    percentage = {
+        key: round((result[key] / total_votes) * 100, 2) if total_votes > 0 else 0
+        for key in result
+    }
+
+    # Winner logic
+    winner = None
+    if total_votes > 0:
+        max_votes = max(result.values())
+        winners = [k for k, v in result.items() if v == max_votes]
+
+        if len(winners) == 1:
+            winner = winners[0]
+        else:
+            winner = "Tie: " + ", ".join(winners)
 
     return jsonify({
-        "has_voted": user.has_voted,
-        "vote": user.vote
+        "votes": result,
+        "percentage": percentage,
+        "total": total_votes,
+        "winner": winner
     })
 
 
-# -----@app.route('/results', methods=['GET'])
-def results():
-    try:
-        users = User.query.all()
+# ------------------ DB ------------------ #
 
-        # Initialize vote count
-        result = {"A": 0, "B": 0, "C": 0, "D": 0}
-        total_votes = 0
-
-        for user in users:
-            # ✅ Safe check (prevents crash if column missing)
-            if hasattr(user, "vote") and user.vote and user.vote in result:
-                result[user.vote] += 1
-                total_votes += 1
-
-        # ✅ Percentage calculation
-        percentage = {}
-        for key in result:
-            if total_votes > 0:
-                percentage[key] = round((result[key] / total_votes) * 100, 2)
-            else:
-                percentage[key] = 0
-
-        # 🏆 Winner logic (handles tie also)
-        winner = None
-        winners = []
-
-        if total_votes > 0:
-            max_votes = max(result.values())
-            winners = [k for k, v in result.items() if v == max_votes]
-
-            # if only one winner
-            if len(winners) == 1:
-                winner = winners[0]
-            else:
-                winner = "Tie between " + ", ".join(winners)
-
-        return jsonify({
-            "votes": result,
-            "percentage": percentage,
-            "total": total_votes,
-            "winner": winner
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)})#------------- RESULTS ------------------ #
+with app.app_context():
+    db.create_all()
 
 
 # ------------------ RUN ------------------ #
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(debug=True)
