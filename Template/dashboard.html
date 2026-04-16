@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voting Dashboard</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: linear-gradient(135deg, #43cea2, #185a9d);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            width: 320px;
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px;
+            width: 100%;
+            background: #185a9d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #144a82;
+        }
+
+        .vote-btn {
+            background: #43cea2;
+        }
+
+        .vote-btn:hover {
+            background: #38b893;
+        }
+
+        .logout {
+            background: red;
+        }
+
+        .logout:hover {
+            background: darkred;
+        }
+
+        #msg {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        pre {
+            text-align: left;
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2 id="welcome">Loading...</h2>
+
+    <h3>Vote for your candidate</h3>
+
+  <button id="btnA" class="vote-btn" onclick="vote('A')">Vote Candidate A</button>
+<button id="btnB" class="vote-btn" onclick="vote('B')">Vote Candidate B</button>
+<button id="btnC" onclick="vote('C')">Vote Candidate C</button>
+<button id="btnD" onclick="vote('D')">Vote Candidate D</button>
+
+<p id="msg"></p>
+
+<button onclick="getResults()">View Results</button>
+
+<div id="result"></div>
+
+<button class="logout" onclick="logout()">Logout</button>
+   
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+
+// 🚫 Redirect if not logged in
+if (!token) {
+    alert("Please login first");
+    window.location.href = "index.html";
+}
+
+// ✅ Load welcome message
+fetch("http://127.0.0.1:5000/dashboard", {
+    method: "GET",
+    headers: {
+        "Authorization": "Bearer " + token
+    }
+})
+.then(res => {
+    if (!res.ok) throw new Error("Unauthorized");
+    return res.json();
+})
+.then(data => {
+    document.getElementById("welcome").innerText = data.message;
+})
+.catch(() => {
+    alert("Session expired. Please login again.");
+    logout();
+});
+
+// 🗳️ Vote function
+function vote(candidate) {
+    fetch("http://127.0.0.1:5000/vote", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ candidate })
+    })
+    .then(async (res) => {
+        const data = await res.json();
+
+        // ✅ handle both success + error
+        document.getElementById("msg").innerText = data.message;
+
+        // ✅ disable buttons if already voted OR success
+        if (data.message && (
+            data.message.includes("Vote") || 
+            data.message.includes("already")
+        )) {
+            document.getElementById("btnA").disabled = true;
+            document.getElementById("btnB").disabled = true;
+            document.getElementById("btnC").disabled = true;
+            document.getElementById("btnD").disabled = true;
+        }
+    })
+    .catch(error => {
+        console.log("ERROR:", error);
+        document.getElementById("msg").innerText = "Server error (check console)";
+    });
+}
+// 📊 Get results
+function getResults() { 
+    fetch("http://127.0.0.1:5000/results")
+    .then(res => {
+        console.log("STATUS:", res.status);
+        return res.json();
+    })
+    .then(data => {
+
+        console.log("FULL DATA:", data);
+
+        // 🚨 handle error from backend
+        if (data.error) {
+            document.getElementById("result").innerText = data.error;
+            return;
+        }
+
+        // 🚨 safe check
+        if (data.total === undefined) {
+            document.getElementById("result").innerText = "Invalid data from server";
+            return;
+        }
+
+        let html = `<h4>Total Votes: ${data.total}</h4><br>`;
+
+        for (let key in data.votes) {
+            html += `
+                <div>
+                    <b>Candidate ${key}</b><br>
+                    Votes: ${data.votes[key]}<br>
+                    Percentage: ${data.percentage[key]}%
+                </div>
+            `;
+        }
+
+        document.getElementById("result").innerHTML = html;
+    })
+.catch(err => {
+        console.log("ERROR:", err);
+        document.getElementById("result").innerText = "Error loading results";
+    });
+}
+
+// 🔓 Logout
+function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "index.html";
+}
+</script>
+</body>
+</html>

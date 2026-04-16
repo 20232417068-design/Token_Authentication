@@ -3,13 +3,13 @@ from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
     jwt_required, get_jwt_identity
 )
-
+from flask_cors import CORS
 
 from extensions import db
 from models import User
 
 app = Flask(__name__)
-
+CORS(app)
 # Config
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'
@@ -67,7 +67,8 @@ def login():
 @jwt_required()
 def dashboard():
     user_id = get_jwt_identity()
-    return jsonify({"message": f"Welcome User {user_id}"})
+    user = User.query.get(user_id)
+    return jsonify({"message": f"Welcome {user.username}"})
 
 @app.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
@@ -79,10 +80,76 @@ def refresh():
 # -------- DATABASE -------- #
 with app.app_context():
     db.create_all()
+# 🗳️ Vote 
+@app.route('/vote', methods=['POST'])
+@jwt_required()
+def vote():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
 
+    data = request.get_json()
 
-# -------- RUN -------- #
+    if not data or "candidate" not in data:
+        return jsonify({"message": "Invalid data"}), 400
+
+    candidate = data["candidate"]
+
+    # ✅ FIX: allow only valid candidates
+    if candidate not in ["A", "B", "C", "D"]:
+        return jsonify({"message": "Invalid candidate"}), 400
+
+    # ✅ FIX: safe access
+    if not hasattr(user, "has_voted"):
+        user.has_voted = False
+
+    if not hasattr(user, "vote"):
+        user.vote = None
+
+    if user.has_voted:
+        return jsonify({"message": "You already voted"}), 400
+
+    user.vote = candidate
+    user.has_voted = True
+
+    db.session.commit()
+
+    return jsonify({"message": f"Vote submitted for {candidate}"})
+# 📊 Results API
+@app.route('/results', methods=['GET'])
+def results():
+    try:
+        users = User.query.all()
+
+        result = {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+        }
+
+        total_votes = 0
+
+        for user in users:
+             if hasattr(user, "vote") and user.vote and user.vote in result:
+                result[user.vote] += 1
+                total_votes += 1
+
+        percentage = {}
+        for key in result:
+            if total_votes > 0:
+                percentage[key] = round((result[key] / total_votes) * 100, 2)
+            else:
+                percentage[key] = 0
+
+        return jsonify({
+            "votes": result,
+            "percentage": percentage,
+            "total": total_votes
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 import os
-
+print("Columns:", User.__table__.columns.keys())
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

@@ -6,4 +6,4 @@ class User(db.Model):
     password = db.Column(db.String(200))
 
     has_voted = db.Column(db.Boolean, default=False)
-    vote = db.Column(db.String(50))   # ✅ MUST BE HERE
+    vote = db.Column(db.String(50))
