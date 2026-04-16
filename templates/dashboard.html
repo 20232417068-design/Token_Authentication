@@ -7,12 +7,13 @@
     <style>
         body {
             font-family: Arial;
-            background: linear-gradient(135deg, #43cea2, #185a9d);
+            background: linear-gradient(135deg, #2ecc71, #3498db);
             height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
         }
+
         .container {
             background: white;
             padding: 30px;
@@ -22,7 +23,7 @@
             text-align: center;
         }
 
- button {
+        button {
             width: 100%;
             padding: 10px;
             margin: 8px 0;
@@ -33,15 +34,6 @@
             color: white;
         }
 
-        .box {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            width: 340px;
-        }
-
         .result-box {
             background: #f1f1f1;
             padding: 10px;
@@ -49,7 +41,8 @@
             border-radius: 6px;
             text-align: left;
         }
-       .winner {
+
+        .winner {
             background: gold;
             padding: 10px;
             border-radius: 6px;
@@ -57,44 +50,23 @@
             font-weight: bold;
         }
 
-        button {
-            margin-top: 10px;
-            padding: 10px;
-            width: 100%;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .vote-btn { background: #43cea2; color: white; }
-        .vote-btn:hover { background: #38b893; }
-
-        .logout { background: red; color: white; }
-        .logout:hover { background: darkred; }
-
-        #msg { margin-top: 10px; font-weight: bold; }
-
-        #result {
-            margin-top: 15px;
-            text-align: left;
-        }
-
-        canvas {
-            margin-top: 15px;
+        .logout {
+            background: red;
         }
     </style>
 </head>
+
 <body>
 
-<div class="box">
+<div class="container">
+
     <h2 id="welcome">Loading...</h2>
+    <p>Vote for your candidate</p>
 
-    <h3>Vote for your candidate</h3>
-
-    <button id="btnA" class="vote-btn" onclick="vote('A')">Vote Candidate A</button>
-    <button id="btnB" class="vote-btn" onclick="vote('B')">Vote Candidate B</button>
-    <button id="btnC" class="vote-btn" onclick="vote('C')">Vote Candidate C</button>
-    <button id="btnD" class="vote-btn" onclick="vote('D')">Vote Candidate D</button>
+    <button onclick="vote('A')" class="vote-btn">Vote Candidate A</button>
+    <button onclick="vote('B')" class="vote-btn">Vote Candidate B</button>
+    <button onclick="vote('C')" class="vote-btn">Vote Candidate C</button>
+    <button onclick="vote('D')" class="vote-btn">Vote Candidate D</button>
 
     <p id="msg"></p>
 
@@ -105,13 +77,15 @@
     <canvas id="chart"></canvas>
 
     <button class="logout" onclick="logout()">Logout</button>
+
 </div>
 
 <script>
-const BASE_URL = "https://token-authentication-hq1t.onrender.com";
+
+const BASE_URL = "http://127.0.0.1:5000"; // ✅ change to Render URL when deploying
 const token = localStorage.getItem("token");
 
-// 🚫 Redirect if not logged in
+// 🚫 redirect if not logged in
 if (!token) {
     alert("Please login first");
     window.location.href = "/";
@@ -121,23 +95,15 @@ if (!token) {
 fetch(BASE_URL + "/dashboard", {
     headers: { "Authorization": "Bearer " + token }
 })
-.then(res => {
-    if (!res.ok) throw new Error("Dashboard failed");
-    return res.json();
-})
+.then(res => res.json())
 .then(data => {
     document.getElementById("welcome").innerText = data.message;
 
     if (data.has_voted) {
         document.getElementById("msg").innerText =
             "✅ You voted for Candidate " + data.vote;
-
         disableButtons();
     }
-})
-.catch(err => {
-    console.log(err);
-    document.getElementById("welcome").innerText = "❌ Failed to load";
 });
 
 // 🗳️ Vote
@@ -155,41 +121,29 @@ function vote(candidate) {
     .then(res => res.json())
     .then(data => {
         document.getElementById("msg").innerText = data.message;
-
-        if (data.message.includes("Vote") || data.message.includes("already")) {
-            disableButtons();
-        }
-    })
-    .catch(() => {
-        document.getElementById("msg").innerText = "Server error";
+        disableButtons();
     });
 }
 
-// 🔒 Disable buttons
+// 🔒 disable buttons
 function disableButtons() {
     document.querySelectorAll(".vote-btn").forEach(btn => {
         btn.disabled = true;
     });
 }
 
+// 📊 Results
+function getResults() {
 
     fetch(BASE_URL + "/results")
     .then(res => res.json())
     .then(data => {
 
-        let html = `
-            <h3>Total Votes: ${data.total}</h3>
-            <div style="margin-top:10px;">
-        `;
+        let html = `<h3>Total Votes: ${data.total}</h3>`;
 
         for (let key in data.votes) {
             html += `
-                <div style="
-                    background:#f5f5f5;
-                    padding:10px;
-                    margin:8px 0;
-                    border-radius:6px;
-                ">
+                <div class="result-box">
                     <b>Candidate ${key}</b><br>
                     Votes: ${data.votes[key]}<br>
                     Percentage: ${data.percentage[key]}%
@@ -197,18 +151,10 @@ function disableButtons() {
             `;
         }
 
-        html += "</div>";
-
         // 🏆 Winner
         if (data.winner) {
             html += `
-                <div style="
-                    margin-top:15px;
-                    padding:10px;
-                    background:#ffd700;
-                    border-radius:6px;
-                    font-weight:bold;
-                ">
+                <div class="winner">
                     🏆 Winner: Candidate ${data.winner}
                 </div>
             `;
@@ -219,15 +165,14 @@ function disableButtons() {
         // 📊 Chart
         const ctx = document.getElementById("chart");
 
-        // destroy old chart
-        if (window.myChart) {
-            window.myChart.destroy();
+        if (window.chart) {
+            window.chart.destroy();
         }
 
-        window.myChart = new Chart(ctx, {
+        window.chart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: ["A", "B", "C", "D"],
+                labels: ["A","B","C","D"],
                 datasets: [{
                     label: 'Votes',
                     data: [
@@ -240,43 +185,15 @@ function disableButtons() {
             }
         });
 
-    })
-    .catch(() => {
-        document.getElementById("result").innerText = "Error loading results";
     });
-fetch(BASE_URL + "/results")
-.then(res => {
-    console.log("STATUS:", res.status);   // 🔥 debug
-    return res.json();
-})
-.then(data => {
-    console.log("DATA:", data);  // 🔥 debug
+}
 
-    if (data.error) {
-        document.getElementById("result").innerText = data.error;
-        return;
-    }
-
-    let html = `<h3>Total Votes: ${data.total}</h3>`;
-
-    for (let key in data.votes) {
-        html += `<p>${key}: ${data.votes[key]}</p>`;
-    }
-
-    if (data.winner) {
-        html += `<h3>🏆 Winner: ${data.winner}</h3>`;
-    }
-
-    document.getElementById("result").innerHTML = html;
-})
-.catch(err => {
-    console.log("ERROR:", err);  // 🔥 IMPORTANT
-});
 // 🔓 Logout
 function logout() {
     localStorage.removeItem("token");
     window.location.href = "/";
 }
+
 </script>
 
 </body>
