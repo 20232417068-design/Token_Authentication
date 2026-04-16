@@ -19,6 +19,7 @@
             padding: 30px;
             border-radius: 12px;
             width: 350px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             text-align: center;
         }
 
@@ -96,29 +97,26 @@ fetch(BASE_URL + "/dashboard", {
 })
 .then(res => res.json())
 .then(data => {
-   console.log("Dashboard Data:", data); // DEBUG
+    console.log("Dashboard Data:", data);
+
     document.getElementById("welcome").innerText =
         "Welcome " + data.username;
 
-        // ✅ remove loading text
     document.getElementById("msg").innerText = "";
 
     if (data.has_voted) {
         document.getElementById("msg").innerText =
             "✅ You voted for Candidate " + data.vote;
-
         disableButtons();
     }
 })
-    .catch(err => {
+.catch(err => {
     console.log(err);
     document.getElementById("welcome").innerText = "Error loading user";
 });
- 
 
 // Vote
 function vote(candidate) {
-
     document.getElementById("msg").innerText = "Processing...";
 
     fetch(BASE_URL + "/vote", {
@@ -131,17 +129,12 @@ function vote(candidate) {
     })
     .then(res => res.json())
     .then(data => {
-         console.log("Vote Response:", data); 
-
-        document.getElementById("msg").innerText =
-            "✅ Vote submitted successfully for " + candidate;
-
+        document.getElementById("msg").innerText = data.message;
         disableButtons();
-        })
+    })
     .catch(err => {
         console.log(err);
-        document.getElementById("msg").innerText =
-            "❌ Vote failed";
+        document.getElementById("msg").innerText = "❌ Vote failed";
     });
 }
 
@@ -151,6 +144,8 @@ function disableButtons() {
         btn.disabled = true;
     });
 }
+
+// Results
 function getResults() {
     fetch(BASE_URL + "/results")
     .then(res => res.json())
@@ -160,7 +155,7 @@ function getResults() {
 
         for (let key in data.votes) {
             html += `
-                <div style="background:#f5f5f5; padding:10px; margin:8px 0; border-radius:6px;">
+                <div class="result-box">
                     <b>Candidate ${key}</b><br>
                     Votes: ${data.votes[key]}<br>
                     Percentage: ${data.percentage[key]}%
@@ -168,10 +163,9 @@ function getResults() {
             `;
         }
 
-        // 🏆 Winner
         if (data.winner) {
             html += `
-                <div style="margin-top:15px; padding:10px; background:#ffd700; border-radius:6px; font-weight:bold;">
+                <div class="winner">
                     🏆 Winner: Candidate ${data.winner}
                 </div>
             `;
@@ -179,9 +173,31 @@ function getResults() {
 
         document.getElementById("result").innerHTML = html;
 
+        // Chart
+        const ctx = document.getElementById("chart");
+
+        if (window.chart) {
+            window.chart.destroy();
+        }
+
+        window.chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ["A","B","C","D"],
+                datasets: [{
+                    label: 'Votes',
+                    data: [
+                        data.votes.A,
+                        data.votes.B,
+                        data.votes.C,
+                        data.votes.D
+                    ]
+                }]
+            }
+        });
+
     })
-    .catch((err) => {
-        console.log(err);
+    .catch(() => {
         document.getElementById("result").innerText = "Error loading results";
     });
 }
